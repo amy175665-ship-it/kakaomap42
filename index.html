@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>카카오 맵 API - 가장 쉬운 검색창</title>
+    <style>
+        /* 기본 여백 리셋 */
+        *{ padding: 0; margin: 0; box-sizing: border-box; }
+
+        body{
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 32px 18px;
+            background:
+                radial-gradient(circle at top left, rgba(0, 128, 255, 0.16), transparent 32%),
+                linear-gradient(135deg, #f7fbff 0%, #eef4f8 50%, #f8fafc 100%);
+            font-family: 'Malgun Gothic', Arial, sans-serif;
+        }
+        
+        .search-box {
+            position: absolute;
+            top: calc(50% - min(36vh, 280px) + 16px);
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10; 
+            display: flex;
+            gap: 8px;
+            width: min(90vw, 420px);
+            background: rgba(255, 255, 255, 0.94);
+            padding: 10px;
+            border: 1px solid rgba(15, 23, 42, 0.08);
+            border-radius: 12px;
+            box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+            backdrop-filter: blur(10px);
+        }
+        .search-box input {
+            flex: 1;
+            min-width: 0;
+            padding: 10px 12px;
+            font-size: 14px;
+            border: 1px solid #d6e0ea;
+            border-radius: 8px;
+            outline: none;
+            color: #1f2937;
+            background: #f8fafc;
+            transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+        }
+        .search-box input:focus {
+            border-color: #0080ff;
+            background: #ffffff;
+            box-shadow: 0 0 0 3px rgba(0, 128, 255, 0.16);
+        }
+        .search-box button {
+            flex: 0 0 auto;
+            padding: 10px 16px;
+            font-size: 14px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #0080ff, #0066d6);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 8px 18px rgba(0, 102, 214, 0.26);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .search-box button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 22px rgba(0, 102, 214, 0.32);
+        }
+
+        /* 지도 크기 (화면 전체) */
+        #map {
+            width: min(92vw, 760px);
+            height: min(72vh, 560px);
+            min-height: 430px;
+            border: 1px solid rgba(15, 23, 42, 0.08);
+            border-radius: 18px;
+            overflow: hidden;
+            box-shadow:
+                0 22px 55px rgba(15, 23, 42, 0.18),
+                0 2px 8px rgba(15, 23, 42, 0.08);
+        }
+
+        @media (max-width: 560px) {
+            body {
+                padding: 18px 12px;
+                align-items: flex-start;
+            }
+            .search-box {
+                top: 32px;
+                width: calc(100vw - 32px);
+            }
+            #map {
+                width: 100%;
+                height: calc(100vh - 36px);
+                min-height: 520px;
+                border-radius: 14px;
+            }
+        }
+
+        .wrap {
+            position: absolute;
+            left: 0; bottom: 20px; 
+            width: 360px; 
+            height: 142px; 
+            margin-left: -180px; 
+            text-align: left;
+            font-size: 13px;
+            font-family: 'Malgun Gothic', dotum, '돋움', sans-serif;
+            line-height: 1.6;
+        }
+        .wrap .info {
+            width: 100%;
+            height: 130px; 
+            border-radius: 8px;
+            background: #fff;
+            box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.15);
+            overflow: hidden;
+            position: relative;
+        }
+        .info .title {
+            padding: 8px 0 0 15px; 
+            height: 38px; 
+            background: #0080ff; 
+            color: #ffffff; 
+            font-size: 15px;
+            font-weight: bold;
+            position: relative;
+        }
+        .info .close {
+            position: absolute;
+            top: 11px;
+            right: 15px;
+            width: 16px;
+            height: 16px;
+            background: url('https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/overlay_close.png');
+            filter: brightness(0) invert(1); 
+        }
+        .info .close:hover { cursor: pointer; opacity: 0.8; }
+        .info .body { position: relative; padding: 10px 12px; }
+        .info .desc { margin-left: 85px; height: 72px; display: flex; flex-direction: column; }
+        .desc .ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #333; }
+        .desc .jibun { font-size: 11px; color: #7f8c8d; }
+        .info .img {
+            position: absolute;
+            top: 10px; left: 12px; width: 73px; height: 70px;
+            border: 1px solid #eee; border-radius: 4px; overflow: hidden;
+        }
+        .wrap:after {
+            content: ''; position: absolute; margin-left: -11px; left: 50%; bottom: 0; 
+            width: 22px; height: 12px; background: url('https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/vertex_white.png');
+        }
+        .info .link { color: #3498db; text-decoration: none; font-weight: bold; }
+    </style>
+</head>
+<body>
+    
+    <div class="search-box">
+        <input type="text" id="myInput" value="한대앞역 카페">
+        <button onclick="startSearch()">검색</button>
+    </div>
+
+    <div id="map"></div>
+
+    <script type="text/javascript" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=42f94fd5b3b8d883d21c91ad85139dd2&libraries=services"></script>
+    <script>
+                // ----------------------------------------------------
+                // [기본 설정] 지도 띄우기
+                // ----------------------------------------------------
+                let container = document.getElementById('map');
+                let options = {
+                    center: new kakao.maps.LatLng(37.3097, 126.8536), // 한대앞역 좌표
+                    level: 3
+                };
+                let map = new kakao.maps.Map(container, options);
+
+                // 검색용 마커를 클릭했을 때 글자가 나올 풍선껌(인포윈도우) 만들기
+                var infowindow = new kakao.maps.InfoWindow({ zIndex:1 });
+
+                // 지도에 새로 그려진 검색 마커들을 임시로 보관해 둘 장바구니(배열)
+                var saveMarkers = [];
+
+
+                // ----------------------------------------------------
+                // 1. 내가 직접 만든 고정 마커와 오버레이 (한대앞역 오리지널)
+                // ----------------------------------------------------
+                let myPosition = new kakao.maps.LatLng(37.3097, 126.8536); 
+                let myMarker = new kakao.maps.Marker({
+                    position: myPosition,
+                    map: map 
+                });
+
+            
+                var myHtml = '<div class="wrap">' + 
+                    '    <div class="info">' + 
+                    '        <div class="title">' + 
+                    '            한대앞역' + 
+                    '            <div class="close" onclick="closeMyOverlay()" title="닫기"></div>' + 
+                    '        </div>' + 
+                    '        <div class="body">' + 
+                    '            <div class="img">' +
+                    '                <img src="./img/han.jpg" style="width:73px; height:70px; object-fit:cover;">' +
+                    '           </div>' + 
+                    '            <div class="desc">' + 
+                    '                <div class="ellipsis">경기도 안산시 상록구 광덕산로 365</div>' + 
+                    '                <div class="jibun ellipsis">(우) 15501 (지번) 이동 715-1</div>' + 
+                    '                <div><a href="https://www.kakaocorp.com/main" target="_blank" class="link">홈페이지</a></div>' + 
+                    '            </div>' + 
+                    '        </div>' + 
+                    '    </div>' +    
+                    '</div>';
+
+                var myOverlay = new kakao.maps.CustomOverlay({
+                    content: myHtml,
+                    map: map, // 처음부터 열려있게 설정
+                    position: myMarker.getPosition()       
+                });
+
+                // 내 마커 클릭하면 내 오버레이 켜기
+                kakao.maps.event.addListener(myMarker, 'click', function() {
+                    myOverlay.setMap(map);
+                });
+
+                // 내 오버레이 X 누르면 닫히는 함수
+                function closeMyOverlay() {
+                    myOverlay.setMap(null);     
+                }
+
+
+                // ----------------------------------------------------
+                // 2. 키워드 장소 검색 기능 (기초 버전)
+                // ----------------------------------------------------
+                // 카카오 장소 검색 객체를 만듭니다
+                var ps = new kakao.maps.services.Places(); 
+
+                // 첫 페이지 로드 시, 기본값('한대앞역 카페')으로 첫 검색을 한 번 실행해 줍니다
+                startSearch();
+
+                // [핵심] 검색 버튼을 누르면 무조건 이 함수가 실행됩니다!
+                function startSearch() {
+                    // ① input 태그에 적힌 글자를 가져옵니다
+                    var textValue = document.getElementById('myInput').value;
+                    
+                    // ② 혹시 빈칸이거나 스페이스바만 쳤는지 검사합니다 (쉽게 trim 사용)
+                    if (textValue.trim() === '') {
+                        alert('검색어를 입력해주세요!');
+                        return; // 글자가 없으면 여기서 함수를 강제 종료합니다
+                    }
+
+                    // ③ 새로운 검색을 해야 하니까 기존에 그려져 있던 검색 마커들을 지도에서 다 지웁니다
+                    for (var i = 0; i < saveMarkers.length; i++) {
+                        saveMarkers[i].setMap(null); // 지도에서 지우기
+                    }
+                    saveMarkers = []; // 장바구니 비우기
+                    infowindow.close(); // 열려있던 텍스트 풍선 닫기
+
+                    // ④ 입력창에서 가져온 글자(textValue)로 진짜 검색을 요청합니다
+                    ps.keywordSearch(textValue, searchCallback); 
+                }
+
+                // 검색이 성공적으로 끝나면 결과를 받아서 처리하는 함수
+                function searchCallback(data, status, pagination) {
+                    // 검색 결과가 정상(OK)일 때만 작동합니다
+                    if (status === kakao.maps.services.Status.OK) {
+
+                        // 마커들을 지도 화면 하나에 다 모아 보여주기 위한 범위 상자 만들기
+                        var bounds = new kakao.maps.LatLngBounds();
+
+                        // 검색된 개수만큼 반복문 실행
+                        for (var i = 0; i < data.length; i++) {
+                            drawNewMarker(data[i]); // 마커 그리는 함수로 데이터 토스!
+                            
+                            // 범위 상자에 이번 마커의 좌표를 추가하기
+                            bounds.extend(new kakao.maps.LatLng(data[i].y, data[i].x));
+                        }       
+
+                        // 모든 마커가 다 보일 수 있도록 지도 화면 위치를 자동으로 맞춰줍니다
+                        map.setBounds(bounds);
+                    } 
+                }
+
+                // 검색된 가게 하나하나를 지도에 찍어주는 함수
+                function drawNewMarker(place) {
+                    // 마커 생성 후 지도에 바로 올리기
+                    var newMarker = new kakao.maps.Marker({
+                        map: map,
+                        position: new kakao.maps.LatLng(place.y, place.x) 
+                    });
+
+                    // 나중에 지울 수 있도록 장바구니(배열)에 보관해 둡니다
+                    saveMarkers.push(newMarker);
+
+                    // 이 마커를 클릭했을 때 글자 풍선(인포윈도우)이 뜨게 이벤트를 줍니다
+                    kakao.maps.event.addListener(newMarker, 'click', function() {
+                        // 인포윈도우 안에 들어갈 디자인과 가게 이름 세팅
+                        infowindow.setContent('<div style="padding:5px; font-size:12px; color:black;">' + place.place_name + '</div>');
+                        // 지정한 마커 위에 풍선 띄우기
+                        infowindow.open(map, newMarker);
+                    });
+                }
+    </script>
+</body>
+</html>
